@@ -196,6 +196,20 @@ var aiPermissions = [
   { id: "ai-delete", name: "Maza\u0165 s\xFAbory", enabled: false, scope: "requires approval" }
 ];
 var aiBehaviorLog = [];
+var aiKnowledgeBase = [];
+var aiEvolutionScore = { value: 0 };
+var aiCapabilities = [
+  // unlocked capabilities
+  { id: "base-ops", name: "Z\xE1kladn\xE1 oper\xE1cia", unlocked: true, unlockedAt: "init" },
+  { id: "pattern-detect", name: "Detekcia vzorcov", unlocked: true, unlockedAt: "init" },
+  { id: "adaptive-routing", name: "Adapt\xEDvne routovanie", unlocked: false, unlockedAt: null },
+  { id: "predictive-analysis", name: "Predikt\xEDvna anal\xFDza", unlocked: false, unlockedAt: null },
+  { id: "auto-codegen", name: "Auton\xF3mne generovanie k\xF3du", unlocked: false, unlockedAt: null },
+  { id: "self-healing", name: "Samolie\u010Denie syst\xE9mu", unlocked: false, unlockedAt: null }
+];
+var aiAutonomousLog = [];
+var aiMetrics = { cycles: 0, decisions: 0, tasks: 0, patterns: 0, evolutions: 0 };
+var aiActive = { value: false };
 
 // src/routes/auth.js
 function json(data, status = 200) {
@@ -446,9 +460,175 @@ async function handleAI(request, env) {
     logAudit("AI_COMMAND", "super-admin", command.slice(0, 80));
     return json5({ command, response, engine });
   }
+  if (section === "autonomous" && id === "status" && request.method === "GET") {
+    return json5({
+      active: aiActive.value,
+      evolutionScore: aiEvolutionScore.value,
+      metrics: aiMetrics,
+      capabilities: aiCapabilities,
+      knowledgeBaseSize: aiKnowledgeBase.length,
+      recentCycles: aiAutonomousLog.slice(0, 10)
+    });
+  }
+  if (section === "autonomous" && id === "cycle" && request.method === "POST") {
+    const result = runAutonomousCycle();
+    return json5(result);
+  }
+  if (section === "autonomous" && id === "toggle" && request.method === "POST") {
+    aiActive.value = !aiActive.value;
+    logAudit("AI_ENGINE_TOGGLE", "super-admin", `Autonomous engine ${aiActive.value ? "STARTED" : "STOPPED"}`);
+    return json5({ active: aiActive.value });
+  }
+  if (section === "learn" && request.method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const source = body.source || "manual";
+    const payload = body.payload || {};
+    const record = {
+      id: `KB-${Date.now()}-${Math.floor(Math.random() * 1e3)}`,
+      source,
+      payload,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    aiKnowledgeBase.push(record);
+    const patterns = selfLearn();
+    return json5({ ingested: record, patterns, knowledgeBaseSize: aiKnowledgeBase.length });
+  }
+  if (section === "evolve" && request.method === "POST") {
+    const result = selfEvolve();
+    return json5(result);
+  }
+  if (section === "decision" && request.method === "GET") {
+    const decision = autonomousDecision();
+    return json5(decision);
+  }
   return json5({ error: "Endpoint not found" }, 404);
 }
 __name(handleAI, "handleAI");
+function selfLearn() {
+  const patterns = {};
+  for (const record of aiKnowledgeBase) {
+    const src = record.source;
+    patterns[src] = (patterns[src] || 0) + 1;
+  }
+  aiMetrics.patterns = Object.keys(patterns).length;
+  return patterns;
+}
+__name(selfLearn, "selfLearn");
+function selfEvolve() {
+  const patterns = selfLearn();
+  aiEvolutionScore.value += Object.values(patterns).reduce((a, b) => a + b, 0);
+  aiMetrics.evolutions++;
+  const newCapabilities = [];
+  if (aiEvolutionScore.value > 10 && !aiCapabilities.find((c) => c.id === "adaptive-routing")?.unlocked) {
+    const cap = aiCapabilities.find((c) => c.id === "adaptive-routing");
+    if (cap) {
+      cap.unlocked = true;
+      cap.unlockedAt = (/* @__PURE__ */ new Date()).toISOString();
+      newCapabilities.push(cap.name);
+    }
+  }
+  if (aiEvolutionScore.value > 30 && !aiCapabilities.find((c) => c.id === "predictive-analysis")?.unlocked) {
+    const cap = aiCapabilities.find((c) => c.id === "predictive-analysis");
+    if (cap) {
+      cap.unlocked = true;
+      cap.unlockedAt = (/* @__PURE__ */ new Date()).toISOString();
+      newCapabilities.push(cap.name);
+    }
+  }
+  if (aiEvolutionScore.value > 60 && !aiCapabilities.find((c) => c.id === "auto-codegen")?.unlocked) {
+    const cap = aiCapabilities.find((c) => c.id === "auto-codegen");
+    if (cap) {
+      cap.unlocked = true;
+      cap.unlockedAt = (/* @__PURE__ */ new Date()).toISOString();
+      newCapabilities.push(cap.name);
+    }
+  }
+  if (aiEvolutionScore.value > 100 && !aiCapabilities.find((c) => c.id === "self-healing")?.unlocked) {
+    const cap = aiCapabilities.find((c) => c.id === "self-healing");
+    if (cap) {
+      cap.unlocked = true;
+      cap.unlockedAt = (/* @__PURE__ */ new Date()).toISOString();
+      newCapabilities.push(cap.name);
+    }
+  }
+  return { evolutionScore: aiEvolutionScore.value, newCapabilities, totalCapabilities: aiCapabilities.filter((c) => c.unlocked).length };
+}
+__name(selfEvolve, "selfEvolve");
+function autonomousDecision() {
+  const ecosystem = {};
+  for (const p of pillars) {
+    ecosystem[p.name] = p.status;
+  }
+  aiMetrics.decisions++;
+  const anomalies = pillars.filter((p) => p.status !== "ONLINE");
+  if (anomalies.length === 0) {
+    return { decision: "ALL_GOOD", ecosystem, action: "Syst\xE9m stabiln\xFD, \u017Eiadna akcia potrebn\xE1" };
+  }
+  const anomaly = anomalies[0];
+  if (anomaly.id === "logistics") {
+    return { decision: "CHECK_LOGISTICS", ecosystem, action: `Detekovan\xE1 anom\xE1lia: ${anomaly.name}. Sp\xFA\u0161\u0165am logistick\xFA diagnostiku.` };
+  }
+  if (anomaly.id === "rentacar") {
+    return { decision: "CHECK_VEHICLES", ecosystem, action: `Detekovan\xE1 anom\xE1lia: ${anomaly.name}. Sp\xFA\u0161\u0165am diagnostiku vozidiel.` };
+  }
+  return { decision: "CHECK_PILLAR", ecosystem, action: `Detekovan\xE1 anom\xE1lia: ${anomaly.name} (${anomaly.status}).` };
+}
+__name(autonomousDecision, "autonomousDecision");
+function autonomousTasks(decision) {
+  aiMetrics.tasks++;
+  const tasks = [];
+  if (decision.decision === "CHECK_LOGISTICS") {
+    tasks.push({ task: "Logistick\xE1 diagnostika", status: "running", detail: "Kontrola z\xE1sielok a skladov" });
+  } else if (decision.decision === "CHECK_VEHICLES") {
+    tasks.push({ task: "Diagnostika vozidiel", status: "running", detail: "Kontrola GPS a stavu flotily" });
+  } else if (decision.decision === "CHECK_PILLAR") {
+    tasks.push({ task: `Diagnostika: ${decision.action}`, status: "running", detail: "Kontrola piliera" });
+  } else {
+    tasks.push({ task: "Syst\xE9m stabiln\xFD", status: "idle", detail: "\u017Diadne ak\xFAtne \xFAlohy" });
+  }
+  return tasks;
+}
+__name(autonomousTasks, "autonomousTasks");
+function runAutonomousCycle() {
+  aiMetrics.cycles++;
+  const cycleStart = (/* @__PURE__ */ new Date()).toISOString();
+  const ecosystemData = pillars.map((p) => ({ id: p.id, name: p.name, status: p.status, stats: p.stats }));
+  aiKnowledgeBase.push({
+    id: `KB-${Date.now()}-${Math.floor(Math.random() * 1e3)}`,
+    source: "ecosystem",
+    payload: { pillars: ecosystemData },
+    timestamp: cycleStart
+  });
+  const patterns = selfLearn();
+  const evolution = selfEvolve();
+  const decision = autonomousDecision();
+  const tasks = autonomousTasks(decision);
+  const cycleLog = {
+    cycle: aiMetrics.cycles,
+    time: cycleStart,
+    patterns: Object.keys(patterns).length,
+    evolutionScore: aiEvolutionScore.value,
+    newCapabilities: evolution.newCapabilities,
+    decision: decision.decision,
+    action: decision.action,
+    tasks
+  };
+  aiAutonomousLog.unshift(cycleLog);
+  logAudit("AI_AUTONOMOUS_CYCLE", "TRINITY-AI", `Cyklus #${aiMetrics.cycles}: ${decision.decision}`);
+  return {
+    cycle: aiMetrics.cycles,
+    status: "completed",
+    decision: decision.decision,
+    action: decision.action,
+    patterns: Object.keys(patterns).length,
+    evolutionScore: aiEvolutionScore.value,
+    newCapabilities: evolution.newCapabilities,
+    totalCapabilities: aiCapabilities.filter((c) => c.unlocked).length,
+    tasks,
+    metrics: aiMetrics
+  };
+}
+__name(runAutonomousCycle, "runAutonomousCycle");
 function simulateResponse(command) {
   const c = command.toLowerCase();
   if (c.includes("web") || c.includes("str\xE1nk"))
@@ -989,32 +1169,89 @@ window.toggleInt = async (id) => {
 
 // --- AI Core View ---
 async function renderAI(c) {
-  const [{ data: perms }, { data: behavior }] = await Promise.all([
-    api('/api/ai/permissions'), api('/api/ai/behavior')
+  const [{ data: perms }, { data: behavior }, { data: auto }] = await Promise.all([
+    api('/api/ai/permissions'), api('/api/ai/behavior'), api('/api/ai/autonomous/status')
   ]);
+  const m = auto?.metrics || { cycles: 0, decisions: 0, tasks: 0, patterns: 0, evolutions: 0 };
+  const caps = auto?.capabilities || [];
+  const cycles = auto?.recentCycles || [];
+
   c.innerHTML = \`
-  <div class="mb-8"><h1 class="text-3xl font-black neon uppercase">\u2726 TRINITY AI Core</h1><div class="text-xs text-gray-600 tracking-widest mt-1">CENTR\xC1LNA AUTON\xD3MNA INTELIGENCIA</div></div>
+  <div class="flex items-center justify-between mb-6">
+    <div><h1 class="text-3xl font-black neon uppercase">\u2726 TRINITY AI Core</h1><div class="text-xs text-gray-600 tracking-widest mt-1">CENTR\xC1LNA AUTON\xD3MNA INTELIGENCIA</div></div>
+    <div class="flex items-center gap-3">
+      <span class="badge \${auto?.active?'badge-online':'badge-disconnected'}">\${auto?.active?'ENGINE ACTIVE':'ENGINE IDLE'}</span>
+      <button id="ai-toggle-engine" class="\${auto?.active?'btn-ghost':'btn-neon'} text-xs uppercase">\${auto?.active?'Stop':'\u0160tart'}</button>
+    </div>
+  </div>
+
+  <!-- Metrics bar -->
+  <div class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Cykly</div><div class="text-xl font-black neon">\${m.cycles}</div></div>
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Rozhodnutia</div><div class="text-xl font-black neon">\${m.decisions}</div></div>
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">\xDAlohy</div><div class="text-xl font-black neon">\${m.tasks}</div></div>
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Vzorce</div><div class="text-xl font-black neon">\${m.patterns}</div></div>
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Evol\xFAcie</div><div class="text-xl font-black neon">\${m.evolutions}</div></div>
+    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Evo Score</div><div class="text-xl font-black neon">\${auto?.evolutionScore || 0}</div></div>
+  </div>
+
+  <!-- Autonomous cycle controls -->
+  <div class="panel p-5 mb-6">
+    <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">\u2699 Auton\xF3mny engine</h3>
+    <div class="flex flex-wrap gap-3 mb-4">
+      <button id="ai-cycle" class="btn-neon text-xs uppercase">Spusti auton\xF3mny cyklus</button>
+      <button id="ai-learn" class="btn-ghost text-xs uppercase">Samou\u010Denie</button>
+      <button id="ai-evolve" class="btn-ghost text-xs uppercase">Samoevol\xFAcia</button>
+      <button id="ai-decision" class="btn-ghost text-xs uppercase">Auton\xF3mne rozhodnutie</button>
+    </div>
+    <div id="ai-cycle-result" class="terminal" style="min-height:60px"><div class="text-gray-600">Stav engine: \${auto?.active?'AKT\xCDVNY':'NEAKT\xCDVNY'} \xB7 Knowledge base: \${auto?.knowledgeBaseSize || 0} z\xE1znamov</div></div>
+  </div>
+
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Command panel -->
     <div class="panel p-5">
       <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Pr\xEDkazov\xFD panel</h3>
       <textarea id="ai-cmd" class="input mb-3" rows="3" placeholder="Zadaj pr\xEDkaz pre AI Core..."></textarea>
       <button id="ai-send" class="btn-neon w-full uppercase">Vykonaj pr\xEDkaz</button>
-      <div id="ai-response" class="terminal mt-4" style="min-height:120px"><div class="text-gray-600">\u010Cak\xE1m na pr\xEDkaz od super-admina...</div></div>
+      <div id="ai-response" class="terminal mt-4" style="min-height:100px"><div class="text-gray-600">\u010Cak\xE1m na pr\xEDkaz od super-admina...</div></div>
     </div>
-    <div class="space-y-6">
-      <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Povolenia a obmedzenia</h3>
-        <div class="space-y-3" id="ai-perms">\${(perms?.permissions||[]).map(p => \`
-        <div class="flex items-center justify-between p-2 hover:bg-gray-900">
-          <div><div class="text-xs font-bold text-gray-300">\${p.name}</div><div class="text-[10px] text-gray-600">\${p.scope}</div></div>
-          <div class="toggle \${p.enabled?'on':''}" onclick="togglePerm('\${p.id}')"></div>
-        </div>\`).join('')}</div>
+
+    <!-- Capabilities -->
+    <div class="panel p-5">
+      <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">\u{1F9EC} Schopnosti (samoevol\xFAcia)</h3>
+      <div class="space-y-2">
+        \${caps.map(cap => \`
+        <div class="flex items-center justify-between p-2 \${cap.unlocked?'':'opacity-40'}">
+          <div class="flex items-center gap-2">
+            <span class="\${cap.unlocked?'neon':'text-gray-700'}">\${cap.unlocked?'\u25C6':'\u25C7'}</span>
+            <span class="text-xs \${cap.unlocked?'text-gray-300':'text-gray-600'}">\${cap.name}</span>
+          </div>
+          <span class="text-[10px] \${cap.unlocked?'text-green-500':'text-gray-700'}">\${cap.unlocked?'UNLOCKED':'LOCKED'}</span>
+        </div>\`).join('')}
       </div>
-      <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Monitoring spr\xE1vania</h3>
-        <div class="terminal" style="max-height:200px">\${(behavior?.logs||[]).map(l => \`<div><span class="text-gray-600">[\${l.time.slice(11,19)}]</span> <span class="text-gray-400">\${l.command}</span> \u2192 <span class="neon">\${(l.response||'').slice(0,60)}</span></div>\`).join('') || '<div class="text-gray-600">\u017Diadna aktivita</div>'}</div>
-      </div>
+    </div>
+
+    <!-- Permissions -->
+    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Povolenia a obmedzenia</h3>
+      <div class="space-y-3" id="ai-perms">\${(perms?.permissions||[]).map(p => \`
+      <div class="flex items-center justify-between p-2 hover:bg-gray-900">
+        <div><div class="text-xs font-bold text-gray-300">\${p.name}</div><div class="text-[10px] text-gray-600">\${p.scope}</div></div>
+        <div class="toggle \${p.enabled?'on':''}" onclick="togglePerm('\${p.id}')"></div>
+      </div>\`).join('')}</div>
+    </div>
+
+    <!-- Autonomous cycle log -->
+    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">\u{1F504} Cyklus logy</h3>
+      <div class="terminal" style="max-height:200px">\${cycles.map(cy => \`<div><span class="text-gray-600">[#\${cy.cycle}]</span> <span class="text-gray-400">\${cy.decision}</span> \u2192 <span class="neon">\${cy.action?.slice(0,50)}</span> <span class="text-gray-700">(score: \${cy.evolutionScore})</span>\${cy.newCapabilities?.length?\` <span class="text-green-500">NEW: \${cy.newCapabilities.join(', ')}</span>\`:''}</div>\`).join('') || '<div class="text-gray-600">\u017Diadne cykly. Spusti auton\xF3mny cyklus.</div>'}</div>
+    </div>
+
+    <!-- Behavior monitoring -->
+    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">\u{1F4E1} Monitoring spr\xE1vania</h3>
+      <div class="terminal" style="max-height:200px">\${(behavior?.logs||[]).map(l => \`<div><span class="text-gray-600">[\${l.time.slice(11,19)}]</span> <span class="text-gray-400">\${l.command}</span> \u2192 <span class="neon">\${(l.response||'').slice(0,60)}</span></div>\`).join('') || '<div class="text-gray-600">\u017Diadna aktivita</div>'}</div>
     </div>
   </div>\`;
 
+  // Command panel
   document.getElementById('ai-send').onclick = async () => {
     const cmd = document.getElementById('ai-cmd').value.trim();
     if (!cmd) return;
@@ -1023,6 +1260,57 @@ async function renderAI(c) {
     const { ok, data } = await api('/api/ai/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
     if (ok) box.innerHTML = \`<div class="text-gray-600">> \${cmd}</div><div class="neon mt-2">\${data.response}</div><div class="text-[10px] text-gray-700 mt-2">Engine: \${data.engine}</div>\`;
     else box.innerHTML = \`<div class="text-red-500">Chyba: \${data.error}</div>\`;
+  };
+
+  // Toggle engine
+  document.getElementById('ai-toggle-engine').onclick = async () => {
+    await api('/api/ai/autonomous/toggle', { method: 'POST' });
+    renderAI(c);
+  };
+
+  // Run autonomous cycle
+  document.getElementById('ai-cycle').onclick = async () => {
+    const box = document.getElementById('ai-cycle-result');
+    box.innerHTML = '<div class="text-yellow-500">Sp\xFA\u0161\u0165am auton\xF3mny cyklus...<span class="blink">_</span></div>';
+    const { ok, data } = await api('/api/ai/autonomous/cycle', { method: 'POST' });
+    if (ok) {
+      box.innerHTML = \`<div class="text-green-500">\u2713 Cyklus #\${data.cycle} dokon\u010Den\xFD</div>
+        <div class="text-gray-400 mt-1">Rozhodnutie: <span class="neon">\${data.decision}</span></div>
+        <div class="text-gray-400">Akcia: \${data.action}</div>
+        <div class="text-gray-400">Vzorce: \${data.patterns} \xB7 Evo score: \${data.evolutionScore} \xB7 Schopnosti: \${data.totalCapabilities}/\${(auto?.capabilities||[]).length}</div>
+        \${data.newCapabilities?.length?\`<div class="text-green-500 mt-1">\u{1F9EC} Nov\xE9 schopnosti: \${data.newCapabilities.join(', ')}</div>\`:''}
+        <div class="text-gray-600 mt-1">\xDAlohy: \${data.tasks.map(t=>t.task+' ('+t.status+')').join(', ')}</div>\`;
+      setTimeout(() => renderAI(c), 2000);
+    } else {
+      box.innerHTML = '<div class="text-red-500">Chyba: ' + (data?.error || 'unknown') + '</div>';
+    }
+  };
+
+  // Self-learning
+  document.getElementById('ai-learn').onclick = async () => {
+    const { ok, data } = await api('/api/ai/learn', { method: 'POST', body: JSON.stringify({ source: 'manual', payload: { trigger: 'super-admin' } }) });
+    if (ok) {
+      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">\u2713 Samou\u010Denie: \${data.patterns ? Object.entries(data.patterns).map(([k,v])=>k+':'+v).join(', ') : '\u017Eiadne vzorce'}</div><div class="text-gray-500">Knowledge base: \${data.knowledgeBaseSize} z\xE1znamov</div>\`;
+      setTimeout(() => renderAI(c), 1500);
+    }
+  };
+
+  // Self-evolution
+  document.getElementById('ai-evolve').onclick = async () => {
+    const { ok, data } = await api('/api/ai/evolve', { method: 'POST' });
+    if (ok) {
+      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">\u2713 Samoevol\xFAcia: score \${data.evolutionScore}</div>\${data.newCapabilities?.length?\`<div class="text-green-500">\u{1F9EC} Nov\xE9 schopnosti: \${data.newCapabilities.join(', ')}</div>\`:'<div class="text-gray-500">\u017Diadne nov\xE9 schopnosti (potrebuj vy\u0161\u0161\xED score)</div>'}<div class="text-gray-500">Odomknut\xE9: \${data.totalCapabilities}/\${caps.length}</div>\`;
+      setTimeout(() => renderAI(c), 1500);
+    }
+  };
+
+  // Autonomous decision
+  document.getElementById('ai-decision').onclick = async () => {
+    const { ok, data } = await api('/api/ai/decision');
+    if (ok) {
+      const ecoStr = Object.entries(data.ecosystem||{}).map(([k,v])=>k+':'+v).join(', ');
+      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">\u2713 Rozhodnutie: \${data.decision}</div><div class="text-gray-400">\${data.action}</div><div class="text-gray-600 mt-1">Ecosystem: \${ecoStr}</div>\`;
+    }
   };
 }
 

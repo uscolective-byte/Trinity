@@ -207,6 +207,21 @@ const aiPermissions = [
 
 const aiBehaviorLog = [];
 
+// --- AI Core: Autonomous Engine state ---
+const aiKnowledgeBase = [];     // ingested data records
+const aiEvolutionScore = { value: 0 }; // grows with each learning cycle
+const aiCapabilities = [       // unlocked capabilities
+  { id: 'base-ops', name: 'Základná operácia', unlocked: true, unlockedAt: 'init' },
+  { id: 'pattern-detect', name: 'Detekcia vzorcov', unlocked: true, unlockedAt: 'init' },
+  { id: 'adaptive-routing', name: 'Adaptívne routovanie', unlocked: false, unlockedAt: null },
+  { id: 'predictive-analysis', name: 'Prediktívna analýza', unlocked: false, unlockedAt: null },
+  { id: 'auto-codegen', name: 'Autonómne generovanie kódu', unlocked: false, unlockedAt: null },
+  { id: 'self-healing', name: 'Samoliečenie systému', unlocked: false, unlockedAt: null },
+];
+const aiAutonomousLog = [];    // autonomous cycle logs
+const aiMetrics = { cycles: 0, decisions: 0, tasks: 0, patterns: 0, evolutions: 0 };
+const aiActive = { value: false }; // engine running flag
+
 // --- System alerts ---
 const alerts = [
   { id: 'ALR-001', severity: 'warning', pillar: 'GitHub', message: 'CI zlyhanie: Trinity repo (Node.js 22.x)', time: '2026-09-03' },
@@ -239,6 +254,12 @@ export {
   integrations,
   aiPermissions,
   aiBehaviorLog,
+  aiKnowledgeBase,
+  aiEvolutionScore,
+  aiCapabilities,
+  aiAutonomousLog,
+  aiMetrics,
+  aiActive,
   alerts,
   systemLogs,
 };
