@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-j8dHz9/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-MbVgeb/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
@@ -184,7 +184,7 @@ var integrations = [
   { id: "cloudflare", name: "Cloudflare", icon: "\u2601\uFE0F", status: "connected", detail: "DNS + Workers + WAF", domain: "auru.space" },
   { id: "github", name: "GitHub", icon: "\u{1F419}", status: "connected", detail: "Repo management + CI/CD", repos: ["Trinity", "USC", "Tenebris", "Auru_trinity_butcher"] },
   { id: "firebase", name: "Firebase", icon: "\u{1F525}", status: "disconnected", detail: "Datab\xE1za + Auth", project: "\u2014" },
-  { id: "gemini", name: "Google AI Studio", icon: "\u2728", status: "connected", detail: "Gemini \u2014 AI Core engine", model: "gemini-2.0-flash" },
+  { id: "gemini", name: "Google AI Studio", icon: "\u2728", status: "connected", detail: "Gemini \u2014 AI Core engine", model: "gemini-flash-latest" },
   { id: "dominatron", name: "Dominatron", icon: "\u{1F310}", status: "disconnected", detail: "Spr\xE1va dom\xE9n", domains: "\u2014" }
 ];
 var aiPermissions = [
@@ -413,11 +413,12 @@ async function handleAI(request, env) {
       response: "processing"
     });
     let response;
+    let engine = "simulated";
     const apiKey = env?.gemini || env?.GEMINI || env?.GEMINI_API_KEY;
     if (apiKey) {
       try {
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -427,16 +428,23 @@ async function handleAI(request, env) {
           }
         );
         const geminiData = await geminiRes.json();
-        response = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Bez odpovede.";
+        if (geminiData.error) {
+          response = simulateResponse(command) + "\n\n[Note: Gemini je moment\xE1lne nedostupn\xFD (" + geminiData.error.message + "). Sp\xFA\u0161\u0165am simulovan\xFD re\u017Eim.]";
+          engine = "gemini-fallback";
+        } else {
+          response = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Bez odpovede.";
+          engine = "gemini";
+        }
       } catch (e) {
-        response = `Gemini chyba: ${e.message}. Sp\xFA\u0161\u0165am simulovan\xFD re\u017Eim.`;
+        response = simulateResponse(command) + "\n\n[Gemini nedostupn\xFD: " + e.message + "]";
+        engine = "gemini-fallback";
       }
     } else {
       response = simulateResponse(command);
     }
     aiBehaviorLog[0].response = response;
     logAudit("AI_COMMAND", "super-admin", command.slice(0, 80));
-    return json5({ command, response, engine: apiKey ? "gemini" : "simulated" });
+    return json5({ command, response, engine });
   }
   return json5({ error: "Endpoint not found" }, 404);
 }
@@ -1124,7 +1132,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-j8dHz9/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-MbVgeb/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1156,7 +1164,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-j8dHz9/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-MbVgeb/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
