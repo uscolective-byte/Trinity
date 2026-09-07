@@ -1,0 +1,13 @@
+# Butcher Trinity
+
+Autonómna AI platforma novej generácie s dôrazom na bezpečnosť, auditovateľnosť a riadenú evolúciu.
+
+## 🚀 Rýchly štart
+- Preštudujte si [constitution.md](./constitution.md) pre pochopenie základných pravidiel.
+- Architektúra projektu je detailne popísaná v [architecture.md](./architecture.md).
+- Pravidlá pre prácu agentov nájdete v [AGENTS.md](./AGENTS.md).
+
+## 🛡️ Bezpečnostné piliere
+1. **Ústava nadovšetko:** Žiadna akcia nesmie porušiť bezpečnostné a etické pravidlá.
+2. **Verifikované skilly:** Automaticky navrhnuté schopnosti prechádzajú prísnym podpisovaním a evalmi.
+3. **Riadené zmeny:** Vývoj a evolúcia prebiehajú cez kontrolovaný GitHub PR workflow.
