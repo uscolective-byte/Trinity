@@ -1,0 +1,24 @@
+const skillRegistry = [];
+
+export function registerSkill(skill) {
+  // Nový skill sa štandardne ukladá ako draft na verifikáciu
+  const draftSkill = {
+    ...skill,
+    status: "DRAFT",
+    verified: false,
+    createdAt: new Date().toISOString()
+  };
+  
+  skillRegistry.push(draftSkill);
+  return draftSkill;
+}
+
+export function verifySkill(skillId) {
+  const skill = skillRegistry.find(s => s.id === skillId);
+  if (!skill) return { success: false, error: "Skill nenájdený." };
+  
+  // Overenie podmienok pre aktiváciu
+  skill.verified = true;
+  skill.status = "ACTIVE";
+  return { success: true, skill };
+}
