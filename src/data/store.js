@@ -189,7 +189,7 @@ const accessLevels = [
 // --- Integrations ---
 const integrations = [
   { id: 'cloudflare', name: 'Cloudflare', icon: '☁️', status: 'connected', detail: 'DNS + Workers + WAF', domain: 'auru.space' },
-  { id: 'github', name: 'GitHub', icon: '🐙', status: 'connected', detail: 'Repo management + CI/CD', repos: ['Trinity', 'USC', 'Tenebris', 'Auru_trinity_butcher'] },
+  { id: 'github', name: 'GitHub', icon: '🐙', status: 'connected', detail: 'Repo prepojenie + AI Code Access', repos: ['Trinity', 'USC', 'Tenebris', 'Auru_trinity_butcher'] },
   { id: 'firebase', name: 'Firebase', icon: '🔥', status: 'disconnected', detail: 'Databáza + Auth', project: '—' },
   { id: 'gemini', name: 'Google AI Studio', icon: '✨', status: 'connected', detail: 'Gemini — AI Core engine', model: 'gemini-flash-latest' },
   { id: 'dominatron', name: 'Dominatron', icon: '🌐', status: 'disconnected', detail: 'Správa domén', domains: '—' },

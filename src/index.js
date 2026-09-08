@@ -8,6 +8,7 @@ import { handlePillars } from './routes/pillars.js';
 import { handleSecurity } from './routes/security.js';
 import { handleIntegrations } from './routes/integrations.js';
 import { handleAI } from './routes/ai.js';
+import { handleGitHub } from './routes/github.js';
 import { handleShop } from './routes/api-shop.js';
 import { HTML } from './frontend/app.js';
 
@@ -34,7 +35,7 @@ export default {
     if (path.startsWith('/api/auth')) return handleAuth(request, env);
 
     // Protected routes — require valid session
-    if (path.startsWith('/api/pillars') || path.startsWith('/api/security') || path.startsWith('/api/integrations') || path.startsWith('/api/ai')) {
+    if (path.startsWith('/api/pillars') || path.startsWith('/api/security') || path.startsWith('/api/integrations') || path.startsWith('/api/ai') || path.startsWith('/api/github')) {
       const session = requireAuth(request);
       if (!session) return json({ error: 'Neautorizovaný prístup' }, 401);
     }
@@ -43,6 +44,7 @@ export default {
     if (path.startsWith('/api/security')) return handleSecurity(request, env);
     if (path.startsWith('/api/integrations')) return handleIntegrations(request, env);
     if (path.startsWith('/api/ai')) return handleAI(request, env);
+    if (path.startsWith('/api/github')) return handleGitHub(request, env);
 
     // --- Shop (existing) ---
     if (path.startsWith('/api/shop')) return handleShop(request, env);

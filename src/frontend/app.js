@@ -150,6 +150,7 @@ function renderShell(app, view, param) {
     { id: 'security', icon: '⛨', label: 'Bezpečnosť' },
     { id: 'integrations', icon: '⧉', label: 'Integrácie' },
     { id: 'ai', icon: '✦', label: 'AI Core' },
+    { id: 'github', icon: '⧄', label: 'GitHub' },
     { id: 'shop', icon: '⌗', label: 'USW Shop' },
   ];
 
@@ -177,7 +178,7 @@ function renderShell(app, view, param) {
   </div>\`;
 
   const content = document.getElementById('content');
-  const views = { dashboard: renderDashboard, pillars: renderPillars, security: renderSecurity, integrations: renderIntegrations, ai: renderAI, shop: renderShop };
+  const views = { dashboard: renderDashboard, pillars: renderPillars, security: renderSecurity, integrations: renderIntegrations, ai: renderAI, github: renderGitHub, shop: renderShop };
   (views[view] || renderDashboard)(content, param);
 }
 
@@ -510,6 +511,167 @@ window.togglePerm = async (id) => {
   const perm = (data?.permissions||[]).find(p => p.id === id);
   await api('/api/ai/permissions/' + id, { method: 'PATCH', body: JSON.stringify({ enabled: !perm.enabled }) });
   renderAI(document.getElementById('content'));
+};
+
+// --- GitHub View ---
+let ghState = { owner: null, repo: null, branch: 'main', path: '', repos: [] };
+
+async function renderGitHub(c) {
+  c.innerHTML = \`
+  <div class="flex items-center justify-between mb-6">
+    <div><h1 class="text-3xl font-black neon uppercase">⧄ GitHub</h1><div class="text-xs text-gray-600 tracking-widest mt-1">PREPOJENIE S REPOZITÁRMI · AI CODE ACCESS</div></div>
+    <button id="gh-refresh" class="btn-ghost text-xs uppercase">↻ Obnoviť</button>
+  </div>
+  <div id="gh-content" class="fade-in"><div class="text-gray-600 text-sm">Načítavam repozitáre...</div></div>\`;
+
+  document.getElementById('gh-refresh').onclick = () => renderGitHub(c);
+  await loadGitHubRepos(c);
+}
+
+async function loadGitHubRepos(c) {
+  const content = document.getElementById('gh-content');
+  const { ok, data } = await api('/api/github/repos');
+  if (!ok) {
+    content.innerHTML = \`
+    <div class="panel p-6 text-center">
+      <div class="text-red-500 text-sm mb-2">⚠ \${data.error || 'Chyba pripojenia'}</div>
+      <div class="text-xs text-gray-600">Pre prepojenie s GitHub pridaj GITHUBE token (Personal Access Token) v Base44 Secrets.</div>
+    </div>\`;
+    return;
+  }
+  ghState.repos = data.repos || [];
+  if (ghState.repos.length === 0) {
+    content.innerHTML = '<div class="panel p-6 text-center text-gray-600 text-sm">Žiadne repozitáre nájdené.</div>';
+    return;
+  }
+  content.innerHTML = \`
+  <div class="text-xs text-gray-600 mb-3">Nájdené \${ghState.repos.length} repozitárov. Klikni na repozitár pre prehliadanie.</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+    \${ghState.repos.map(r => \`
+    <div class="panel panel-hover p-4 cursor-pointer" onclick="openRepo('\${r.owner}','\${r.name}','\${r.default_branch}')">
+      <div class="flex items-start justify-between mb-2">
+        <div class="text-lg">\${r.private?'🔒':'📦'}</div>
+        <span class="text-[10px] text-gray-600">\${r.language || '—'}</span>
+      </div>
+      <div class="text-sm font-bold text-gray-200">\${r.name}</div>
+      <div class="text-[10px] text-gray-600 mt-1">\${r.owner}/\${r.name}</div>
+      \${r.description?\`<div class="text-[10px] text-gray-500 mt-2">\${r.description.slice(0,60)}</div>\`:''}
+      <div class="text-[10px] text-gray-700 mt-2">⎇ \${r.default_branch} · ★ \${r.stars} · \${new Date(r.updated_at).toLocaleDateString('sk-SK')}</div>
+    </div>\`).join('')}
+  </div>\`;
+}
+
+window.openRepo = async (owner, repo, branch) => {
+  ghState.owner = owner; ghState.repo = repo; ghState.branch = branch; ghState.path = '';
+  await loadRepoContents(document.getElementById('gh-content'));
+};
+
+async function loadRepoContents(content) {
+  const { ok, data } = await api('/api/github/repo/' + ghState.owner + '/' + ghState.repo + '/contents?path=' + encodeURIComponent(ghState.path) + '&branch=' + ghState.branch);
+  if (!ok) {
+    content.innerHTML = \`<div class="text-red-500 text-sm">\${data.error || 'Chyba'}</div>\`;
+    return;
+  }
+
+  // Breadcrumb
+  const crumbs = ghState.path ? ghState.path.split('/') : [];
+  let breadcrumb = \`<span class="cursor-pointer neon" onclick="ghBrowse('')">\${ghState.repo}</span>\`;
+  let curPath = '';
+  for (const crumb of crumbs) {
+    curPath = curPath ? curPath + '/' + crumb : crumb;
+    breadcrumb += \` / <span class="cursor-pointer \${curPath===ghState.path?'text-gray-300':'text-gray-600'}" onclick="ghBrowse('\${curPath}')">\${crumb}</span>\`;
+  }
+
+  const items = data.items || [];
+  const dirs = items.filter(i => i.type === 'dir').sort((a,b) => a.name.localeCompare(b.name));
+  const files = items.filter(i => i.type === 'file').sort((a,b) => a.name.localeCompare(b.name));
+
+  content.innerHTML = \`
+  <div class="flex items-center gap-3 mb-4">
+    <button onclick="renderGitHub(document.getElementById('content'))" class="btn-ghost text-xs">← Repozitáre</button>
+    <div class="text-sm text-gray-400">\${breadcrumb}</div>
+    <div class="ml-auto flex items-center gap-2">
+      <select id="gh-branch" class="input text-xs" style="width:auto;padding:4px 8px">\${(data.branches||[]).map(b=>\`<option value="\${b.name}" \${b.name===ghState.branch?'selected':''}>\${b.name}</option>\`).join('')}</select>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="panel p-4">
+      <h3 class="text-xs font-bold neon uppercase mb-3 border-b border-gray-800 pb-2">📁 Súbory</h3>
+      <div class="space-y-1">
+        \${dirs.map(d => \`<div class="flex items-center gap-2 p-2 hover:bg-gray-900 cursor-pointer text-xs" onclick="ghBrowse('\${d.path}')"><span class="text-yellow-600">📁</span> \${d.name}</div>\`).join('')}
+        \${files.map(f => \`<div class="flex items-center gap-2 p-2 hover:bg-gray-900 cursor-pointer text-xs" onclick="ghReadFile('\${f.path}')"><span class="text-gray-500">📄</span> \${f.name} <span class="text-gray-700 ml-auto">\${f.size > 1024 ? (f.size/1024).toFixed(1)+'KB' : f.size+'B'}</span></div>\`).join('')}
+      </div>
+    </div>
+    <div class="panel p-4">
+      <h3 class="text-xs font-bold neon uppercase mb-3 border-b border-gray-800 pb-2">📄 Náhľad súboru</h3>
+      <div id="gh-file-view" class="text-gray-600 text-xs">Vyber súbor pre náhľad.</div>
+    </div>
+  </div>\`;
+
+  const branchSelect = document.getElementById('gh-branch');
+  if (branchSelect) branchSelect.onchange = (e) => { ghState.branch = e.target.value; loadRepoContents(content); };
+}
+
+window.ghBrowse = (path) => {
+  ghState.path = path;
+  loadRepoContents(document.getElementById('gh-content'));
+};
+
+window.ghReadFile = async (filePath) => {
+  const view = document.getElementById('gh-file-view');
+  view.innerHTML = '<div class="text-yellow-500">Načítavam...<span class="blink">_</span></div>';
+  const { ok, data } = await api('/api/github/repo/' + ghState.owner + '/' + ghState.repo + '/contents?path=' + encodeURIComponent(filePath) + '&branch=' + ghState.branch);
+  if (!ok || data.type !== 'file') {
+    view.innerHTML = '<div class="text-red-500">' + (data.error || 'Nemôžem načítať súbor') + '</div>';
+    return;
+  }
+  const isBinary = data.content.length > 0 && /[\x00-\x08\x0E-\x1F]/.test(data.content.slice(0, 1000));
+  const preview = isBinary ? '[Binárny súbor — ' + data.size + 'B]' : data.content.slice(0, 5000);
+  view.innerHTML = \`
+  <div class="flex items-center justify-between mb-3">
+    <div class="text-xs font-bold text-gray-300">\${data.name}</div>
+    <div class="flex gap-2">
+      <button onclick="ghAnalyze('\${filePath}')" class="btn-neon text-[10px] uppercase">AI Analyzuj</button>
+      <button onclick="ghEdit('\${filePath}')" class="btn-ghost text-[10px] uppercase">Upraviť</button>
+    </div>
+  </div>
+  <pre class="terminal text-[11px] overflow-x-auto" style="max-height:400px">\${preview.replace(/</g,'&lt;')}\${data.content.length > 5000 ? '\\n\\n... (' + data.content.length + ' znakov celkovo)' : ''}</pre>
+  <div id="gh-analysis" class="mt-3"></div>\`;
+};
+
+window.ghAnalyze = async (filePath) => {
+  const box = document.getElementById('gh-analysis');
+  box.innerHTML = '<div class="text-yellow-500">AI analyzuje kód...<span class="blink">_</span></div>';
+  const { ok, data } = await api('/api/ai/repo/analyze', { method: 'POST', body: JSON.stringify({ owner: ghState.owner, repo: ghState.repo, path: filePath, branch: ghState.branch }) });
+  if (ok) {
+    box.innerHTML = \`<div class="terminal text-[11px] neon" style="max-height:300px">\${data.analysis.replace(/</g,'&lt;')}</div>\`;
+  } else {
+    box.innerHTML = '<div class="text-red-500 text-xs">' + (data.error || 'AI analýza zlyhala') + '</div>';
+  }
+};
+
+window.ghEdit = async (filePath) => {
+  const { ok, data } = await api('/api/github/repo/' + ghState.owner + '/' + ghState.repo + '/contents?path=' + encodeURIComponent(filePath) + '&branch=' + ghState.branch);
+  if (!ok || data.type !== 'file') return;
+  const view = document.getElementById('gh-file-view');
+  view.innerHTML = \`
+  <div class="text-xs font-bold text-gray-300 mb-2">✏ Úprava: \${data.name}</div>
+  <textarea id="gh-edit-area" class="input text-[11px]" style="font-family:monospace;min-height:300px;max-height:500px" rows="20">\${data.content.replace(/</g,'&lt;')}</textarea>
+  <input id="gh-edit-msg" class="input text-xs mt-2" placeholder="Commit message..." value="TRINITY AI Core: update \${data.name}">
+  <div class="flex gap-2 mt-2">
+    <button id="gh-save" class="btn-neon text-xs uppercase">Uložiť zmenu</button>
+    <button onclick="ghReadFile('\${filePath}')" class="btn-ghost text-xs uppercase">Zrušiť</button>
+  </div>\`;
+  document.getElementById('gh-save').onclick = async () => {
+    const content = document.getElementById('gh-edit-area').value;
+    const msg = document.getElementById('gh-edit-msg').value;
+    const { ok: saved, data: sdata } = await api('/api/github/repo/' + ghState.owner + '/' + ghState.repo + '/contents?path=' + encodeURIComponent(filePath) + '&branch=' + ghState.branch, { method: 'PUT', body: JSON.stringify({ content, message: msg }) });
+    if (saved) {
+      window.ghReadFile(filePath);
+    } else {
+      alert('Chyba: ' + (sdata.error || 'unknown'));
+    }
+  };
 };
 
 // --- Shop View ---

@@ -7,6 +7,7 @@
  */
 
 import { aiPermissions, aiBehaviorLog, aiKnowledgeBase, aiEvolutionScore, aiCapabilities, aiAutonomousLog, aiMetrics, aiActive, pillars, logAudit } from '../data/store.js';
+import { ghFetch } from './github.js';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
@@ -145,6 +146,117 @@ export async function handleAI(request, env) {
   if (section === 'decision' && request.method === 'GET') {
     const decision = autonomousDecision();
     return json(decision);
+  }
+
+  // ===== AI REPO INTEGRATION (GitHub) =====
+
+  // POST /api/ai/repo or /api/ai/repo/list — list directory in a repo
+  if (section === 'repo' && (!id || id === 'list') && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const { owner, repo, path: repoPath = '', branch = 'main' } = body;
+    if (!owner || !repo) return json({ error: 'Chýba owner alebo repo' }, 400);
+    const result = await ghFetch(`/repos/${owner}/${repo}/contents/${repoPath}?ref=${branch}`, env);
+    if (result.error) return json({ error: result.error }, 400);
+    const items = Array.isArray(result.data)
+      ? result.data.map(f => ({ name: f.name, path: f.path, type: f.type, size: f.size }))
+      : [{ name: result.data.name, path: result.data.path, type: 'file', size: result.data.size }];
+    return json({ items, branch, path: repoPath });
+  }
+
+  // POST /api/ai/repo/read — read a file from a repo
+  if (section === 'repo' && id === 'read' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const { owner, repo, path: repoPath, branch = 'main' } = body;
+    if (!owner || !repo || !repoPath) return json({ error: 'Chýba owner, repo alebo path' }, 400);
+    const result = await ghFetch(`/repos/${owner}/${repo}/contents/${repoPath}?ref=${branch}`, env);
+    if (result.error) return json({ error: result.error }, 400);
+    const content = result.data.encoding === 'base64'
+      ? atob(result.data.content.replace(/\n/g, ''))
+      : result.data.content;
+    // Ingest into knowledge base
+    aiKnowledgeBase.push({
+      id: `KB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      source: 'github',
+      payload: { owner, repo, path: repoPath, size: result.data.size },
+      timestamp: new Date().toISOString(),
+    });
+    logAudit('AI_REPO_READ', 'TRINITY-AI', `${owner}/${repo}:${repoPath}`);
+    return json({ path: repoPath, content, size: result.data.size, sha: result.data.sha, branch });
+  }
+
+  // POST /api/ai/repo/write — write/update a file in a repo
+  if (section === 'repo' && id === 'write' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const { owner, repo, path: repoPath, content, message, branch = 'main' } = body;
+    if (!owner || !repo || !repoPath || content === undefined) return json({ error: 'Chýba owner, repo, path alebo content' }, 400);
+
+    // Get existing SHA for updates
+    let sha;
+    const existing = await ghFetch(`/repos/${owner}/${repo}/contents/${repoPath}?ref=${branch}`, env);
+    if (!existing.error && existing.data?.sha) sha = existing.data.sha;
+
+    const result = await ghFetch(`/repos/${owner}/${repo}/contents/${repoPath}`, env, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message: message || `TRINITY AI Core: update ${repoPath}`,
+        content: btoa(unescape(encodeURIComponent(content))),
+        branch,
+        ...(sha ? { sha } : {}),
+      }),
+    });
+    if (result.error) return json({ error: result.error }, 400);
+    logAudit('AI_REPO_WRITE', 'TRINITY-AI', `${owner}/${repo}:${repoPath} @${branch}`);
+    return json({ success: true, commit: result.data.commit?.sha, path: repoPath, branch });
+  }
+
+  // POST /api/ai/repo/analyze — read file + Gemini analysis
+  if (section === 'repo' && id === 'analyze' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const { owner, repo, path: repoPath, branch = 'main', question } = body;
+    if (!owner || !repo || !repoPath) return json({ error: 'Chýba owner, repo alebo path' }, 400);
+
+    // 1. Read the file
+    const fileResult = await ghFetch(`/repos/${owner}/${repo}/contents/${repoPath}?ref=${branch}`, env);
+    if (fileResult.error) return json({ error: fileResult.error }, 400);
+    const fileContent = fileResult.data.encoding === 'base64'
+      ? atob(fileResult.data.content.replace(/\n/g, ''))
+      : fileResult.data.content;
+
+    // 2. Ask Gemini to analyze
+    const apiKey = env?.gemini || env?.GEMINI || env?.GEMINI_API_KEY;
+    let analysis;
+    if (apiKey) {
+      try {
+        const prompt = `Si TRINITY AI Core — analyzuješ kód z GitHub repozitára ${owner}/${repo}. Súbor: ${repoPath}\n\nOtázka: ${question || 'Analyzuj tento kód a navrhni vylepšenia.'}\n\nKód:\n\`\`\`\n${fileContent.slice(0, 8000)}\n\`\`\`\n\nOdpovedaj v slovenčine, stručne a profesionálne.`;
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+            }),
+          }
+        );
+        const geminiData = await geminiRes.json();
+        analysis = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Bez odpovede z AI.';
+      } catch (e) {
+        analysis = `AI analýza nedostupná: ${e.message}. Súbor má ${fileContent.length} znakov.`;
+      }
+    } else {
+      analysis = `Súbor ${repoPath} má ${fileContent.length} znakov. Pre AI analýzu pripoj Gemini kľúč.`;
+    }
+
+    // Ingest into knowledge base
+    aiKnowledgeBase.push({
+      id: `KB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      source: 'github-analyze',
+      payload: { owner, repo, path: repoPath, question },
+      timestamp: new Date().toISOString(),
+    });
+    logAudit('AI_REPO_ANALYZE', 'TRINITY-AI', `${owner}/${repo}:${repoPath}`);
+    return json({ path: repoPath, content: fileContent, analysis, size: fileResult.data.size, branch });
   }
 
   return json({ error: 'Endpoint not found' }, 404);

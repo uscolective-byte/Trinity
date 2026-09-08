@@ -10,7 +10,7 @@ services:
       - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
     env_file:
       - /run/base44/app.env
-    command: sh -c "if [ -n \"$$gemini\" ]; then printf 'gemini=%s\n' \"$$gemini\" > .dev.vars; fi && npm install && npx wrangler dev --ip 0.0.0.0 --port 8787"
+    command: sh -c "if [ -n \"$$gemini\" ]; then printf 'gemini=%s\n' \"$$gemini\" > .dev.vars; fi && if [ -n \"$$GITHUBE\" ]; then printf 'GITHUBE=%s\n' \"$$(echo $$GITHUBE | sed 's/^\\\"//;s/\\\"$$//')\" >> .dev.vars; fi && npm install && npx wrangler dev --ip 0.0.0.0 --port 8787"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8787/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
