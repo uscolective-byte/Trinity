@@ -75,3 +75,21 @@ test('no approval leakage between user sessions',async()=>{
  const res=await handleDialogue(req('Schvaľujem'),env,{user:'different-user'});
  assert.equal((await res.json()).mode,'no_pending');
 });
+
+test('approve a named service when more than one deployment is pending', async () => {
+ const db=new FakeDb(), env={TRINITY_DB:db};
+ await send('Nasad worker trinity-gateway do produkcie commit abcdef1234',env);
+ await send('Nasad worker trinity-gemini do produkcie commit abcdef1234',env);
+ const {body}=await send('Schvaľujem trinity-gateway',env);
+ assert.equal(body.mode,'approved');
+ assert.equal(db.approvals.find(x=>x.target==='trinity-gateway').status,'approved');
+ assert.equal(db.approvals.find(x=>x.target==='trinity-gemini').status,'pending');
+});
+test('expired approval cannot be accepted',async()=>{
+ const db=new FakeDb(),env={TRINITY_DB:db};
+ await send('Nasad worker trinity-gateway do produkcie commit abcdef1234',env);
+ db.approvals[0].expires_at='2020-01-01T00:00:00.000Z';
+ const {body}=await send('Schvaľujem',env);
+ assert.equal(body.mode,'no_pending');
+ assert.equal(db.approvals[0].status,'pending');
+});
