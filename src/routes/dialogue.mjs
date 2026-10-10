@@ -1,4 +1,4 @@
-import { approvalIntent, parseDeploy, deployMissing, deploymentLabel, safeHistory, SYSTEM_PROMPT } from '../core/conversation.mjs';
+import { approvalIntent, normalize, parseDeploy, deployMissing, deploymentLabel, safeHistory, SYSTEM_PROMPT } from '../core/conversation.mjs';
 
 const json = (value, status=200) => new Response(JSON.stringify(value), {status, headers:{'content-type':'application/json; charset=utf-8', 'cache-control':'no-store'}});
 const nowIso = () => new Date().toISOString();
@@ -29,13 +29,17 @@ async function previousTurns(db, owner, conversationId) {
   return results.reverse().flatMap(turn => [{role:'user',text:turn.message},{role:'assistant',text:turn.response}]);
 }
 
-async function handleApproval(db, owner, conversationId, intent) {
+async function handleApproval(db, owner, conversationId, intent, message) {
   if (!db) return {response:'Na bezpečné schvaľovanie ešte chýba databázové úložisko TRINITY_DB a migrácia. Nasadenie nebolo vykonané.',mode:'not_configured',engine:'approval'};
-  const {results=[]} = await db.prepare("SELECT id, label FROM trinity_deployment_approvals WHERE owner = ? AND conversation_id = ? AND status = 'pending' AND expires_at > ? ORDER BY created_at DESC LIMIT 2")
+  const {results=[]} = await db.prepare("SELECT id, label, target FROM trinity_deployment_approvals WHERE owner = ? AND conversation_id = ? AND status = 'pending' AND expires_at > ? ORDER BY created_at DESC LIMIT 10")
     .bind(owner, conversationId, nowIso()).all();
-  if (results.length > 1) return {response:'Čaká viac návrhov nasadenia. Napíš názov služby, ktorú chceš schváliť. Interné ID netreba.',mode:'ambiguous',engine:'approval'};
   if (!results.length) return {response:'Nemám v tejto konverzácii otvorený návrh nasadenia na schválenie. Najprv pripravíme presný cieľ a verziu.',mode:'no_pending',engine:'approval'};
-  const chosen = results[0];
+  const words = normalize(message).split(' ');
+  const matches = results.filter(entry => words.includes(normalize(entry.target)));
+  if (results.length > 1 && matches.length !== 1) {
+    return {response:'Čaká viac návrhov nasadenia. Napíš napríklad „Schvaľujem trinity-gateway“. Interné ID netreba.',mode:'ambiguous',engine:'approval'};
+  }
+  const chosen = matches.length === 1 ? matches[0] : results[0];
   const status = intent === 'approve' ? 'approved' : 'rejected';
   const updated = await db.prepare("UPDATE trinity_deployment_approvals SET status = ?, decided_at = ? WHERE id = ? AND owner = ? AND conversation_id = ? AND status = 'pending' AND expires_at > ?")
     .bind(status,nowIso(),chosen.id,owner,conversationId,nowIso()).run();
@@ -92,7 +96,7 @@ export async function handleDialogue(request, env, principal, fetcher=fetch) {
     const spec=parseDeploy(message,body?.deployment);
     // An explicit deploy specification always starts a new proposal, never an approval.
     if (body?.deployment) result=await stageDeployment(db,principal.user,conversationId,spec);
-    else if(intent) result=await handleApproval(db,principal.user,conversationId,intent);
+    else if(intent) result=await handleApproval(db,principal.user,conversationId,intent,message);
     else if(spec) result=await stageDeployment(db,principal.user,conversationId,spec);
     else {
       const history=db ? await previousTurns(db,principal.user,conversationId) : safeHistory(body?.history);
