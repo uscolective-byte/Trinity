@@ -48,6 +48,16 @@ export const HTML = `<!DOCTYPE html>
 <body>
 <div id="app"></div>
 <script>
+const trinityConversationId = (window.crypto?.randomUUID?.() || String(Date.now())).replace(/-/g,'').slice(0,64);
+const trinityHistory = [];
+function trinityBubble(box,role,content) {
+ const div=document.createElement('div');
+ div.className='mb-3 p-3 border rounded '+(role==='user'?'border-gray-700 bg-gray-900':'border-lime-900 bg-black');
+ const title=document.createElement('strong'); title.className='block text-[10px] mb-1 '+(role==='user'?'text-gray-400':'neon');
+ title.textContent=role==='user'?'TY':'TRINITY';
+ const msg=document.createElement('div'); msg.className='text-xs text-gray-200 leading-relaxed'; msg.style.whiteSpace='pre-wrap';
+ msg.textContent=String(content||''); div.append(title,msg);box.appendChild(div);box.scrollTop=box.scrollHeight;
+}
 const API = '';
 let token = localStorage.getItem('trinity_token') || null;
 let currentUser = localStorage.getItem('trinity_user') || null;
@@ -403,7 +413,7 @@ async function renderAI(c) {
     <div class="panel p-5">
       <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Príkazový panel</h3>
       <textarea id="ai-cmd" class="input mb-3" rows="3" placeholder="Zadaj príkaz pre AI Core..."></textarea>
-      <button id="ai-send" class="btn-neon w-full uppercase">Vykonaj príkaz</button>
+      <button id="ai-send" class="btn-neon w-full uppercase">Odoslať Trinity</button>\n      <button id="ai-next" class="btn-ghost w-full mt-2 uppercase">Navrhni ďalší krok</button>\n      <div class="text-[10px] text-gray-600 mt-2">Ctrl+Enter odošle správu. Schvaľovanie bez ručného ID.</div>
       <div id="ai-response" class="terminal mt-4" style="min-height:100px"><div class="text-gray-600">Čakám na príkaz od super-admina...</div></div>
     </div>
 
@@ -442,16 +452,42 @@ async function renderAI(c) {
     </div>
   </div>\`;
 
-  // Command panel
-  document.getElementById('ai-send').onclick = async () => {
-    const cmd = document.getElementById('ai-cmd').value.trim();
-    if (!cmd) return;
-    const box = document.getElementById('ai-response');
-    box.innerHTML = '<div class="text-yellow-500">Spracúvam príkaz...<span class="blink">_</span></div>';
-    const { ok, data } = await api('/api/ai/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
-    if (ok) box.innerHTML = \`<div class="text-gray-600">> \${cmd}</div><div class="neon mt-2">\${data.response}</div><div class="text-[10px] text-gray-700 mt-2">Engine: \${data.engine}</div>\`;
-    else box.innerHTML = \`<div class="text-red-500">Chyba: \${data.error}</div>\`;
-  };
+  // Natural conversation, backed by D1 when configured.
+  const transcript=document.getElementById('ai-response');
+  if(trinityHistory.length){transcript.replaceChildren();trinityHistory.slice(-12).forEach(t=>trinityBubble(transcript,t.role,t.text));}
+  async function sendTrinity(override) {
+    const input=document.getElementById('ai-cmd');
+    const cmd=typeof override==='string'?override:input.value.trim();
+    if(!cmd||cmd.length>3000)return;
+    if(typeof override!=='string')input.value='';
+    const history=trinityHistory.slice(-10);
+    if(!trinityHistory.length)transcript.replaceChildren();
+    trinityHistory.push({role:'user',text:cmd});trinityBubble(transcript,'user',cmd);
+    const pending=document.createElement('div');pending.className='text-yellow-500 text-xs mb-3';pending.textContent='Trinity premýšľa…';transcript.appendChild(pending);
+    document.getElementById('ai-send').disabled=true;
+    let result;
+    try {result=await api('/api/ai/command',{method:'POST',body:JSON.stringify({command:cmd,conversation_id:trinityConversationId,history})});}
+    catch {result={ok:false,data:{error:'Nedostupné spojenie.'}};}
+    pending.remove();document.getElementById('ai-send').disabled=false;
+    const data=result.data||{};
+    const answer=result.ok?data.response:'Odpoveď nie je dostupná. Žiadnu akciu som nespustila.';
+    trinityHistory.push({role:'assistant',text:answer});
+    if(trinityHistory.length>24)trinityHistory.splice(0,trinityHistory.length-24);
+    trinityBubble(transcript,'assistant',answer);
+    if(result.ok&&data.mode==='pending_approval'){
+      const controls=document.createElement('div');controls.className='flex gap-2 my-3';
+      for(const [label,verb] of [['Schváliť','Schvaľujem'],['Zamietnuť','Zamietam']]){
+        const b=document.createElement('button');b.textContent=label;b.className=verb==='Schvaľujem'?'btn-neon':'btn-ghost';
+        b.onclick=()=>{controls.remove();sendTrinity(verb);};controls.appendChild(b);
+      }
+      transcript.appendChild(controls);
+    }
+  }
+  document.getElementById('ai-send').onclick=()=>sendTrinity();
+  document.getElementById('ai-next').onclick=()=>sendTrinity('Navrhni jeden konkrétny ďalší krok vo vývoji Trinity a stručne vysvetli prečo.');
+  document.getElementById('ai-cmd').addEventListener('keydown',event=>{
+    if(event.key==='Enter'&&event.ctrlKey){event.preventDefault();sendTrinity();}
+  });
 
   // Toggle engine
   document.getElementById('ai-toggle-engine').onclick = async () => {
