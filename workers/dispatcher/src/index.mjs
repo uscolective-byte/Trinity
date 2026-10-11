@@ -39,7 +39,8 @@ export default {
     if (data.mode !== 'read') {
       return jsonResult({ status: 'approval_required', reason: 'Only read-only delegation is enabled' }, 403);
     }
-    if (data.depth >= MAX_DEPTH) return jsonResult({ error: 'Maximum depth reached' }, 409);
+    const depth = data.depth ?? 0;
+    if (depth >= MAX_DEPTH) return jsonResult({ error: 'Maximum depth reached' }, 409);
 
     const bindingName = BINDINGS[data.capability];
     const target = env[bindingName];
@@ -61,9 +62,9 @@ export default {
         body: JSON.stringify({
           task: data.task,
           mode: 'read',
-          depth: data.depth + 1,
+          depth: depth + 1,
           capability: data.capability,
-          requestId: data.requestId,
+          requestId: data.requestId ?? crypto.randomUUID(),
         }),
         signal: AbortSignal.timeout(8000),
       }));
