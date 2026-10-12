@@ -28,7 +28,7 @@ test('Google OAuth stays off without client configuration',()=>{
 test('admin email allowlist is normalized and exact',()=>{
   const env={TRINITY_ADMIN_EMAILS:' Owner@Example.invalid, owner@example.invalid , owner@example.invalid,owner@example.invalid '};
   assert.equal(isGoogleAdminEmail(env,'owner@example.invalid'),true);
-  assert.equal(isGoogleAdminEmail(env,'SABOIVAN2008@GMAIL.COM'),true);
+  assert.equal(isGoogleAdminEmail(env,'OWNER@EXAMPLE.INVALID'),true);
   assert.equal(isGoogleAdminEmail(env,'not-owner@example.invalid'),false);
 });
 
