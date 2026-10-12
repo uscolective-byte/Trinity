@@ -6,7 +6,7 @@ export async function readWebSource(env,args,fetchImpl) {
   const page=await fetchWeb({url:args.url,format:'auto'},{
     binding:env.AI,fetch:fetchImpl,maxBytes:2_000_000,maxRedirects:3,
     timeoutMs:20_000,allowPrivateHosts:false,
-    blockedHosts:['example.invalid','*.example.invalid','example.invalid','*.example.invalid','*.workers.dev'],
+    blockedHosts:['*.workers.dev',...String(env.WEB_FETCH_BLOCKED_HOSTS||'').split(',').map(h=>h.trim()).filter(Boolean)],
   });
   if(page.status<200||page.status>=300)throw new Error(`Web fetch HTTP ${page.status}; zdroj nebol uložený.`);
   const output=windowWebFetchPage(page,{offset:args.offset||0,pageChars:6000});

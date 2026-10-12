@@ -1,1 +1,0 @@
-ALTER TABLE ops_jobs ADD COLUMN language TEXT NOT NULL DEFAULT 'sk';

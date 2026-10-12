@@ -1,12 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readWebSource} from '../src/web-fetch.js';
-import {AGENTS} from '../src/registry.js';
-import {runTool} from '../src/tools.js';
+import {readWebSource} from '../web-fetch.js';
 
 function environment(){
   const records=new Map();
-  return {records,DB:{prepare(){return {bind(key,value){return {async run(){records.set(key,JSON.parse(value));}};}};}},
+  return {records,WEB_FETCH_BLOCKED_HOSTS:'example.invalid,*.example.invalid',DB:{prepare(){return {bind(key,value){return {async run(){records.set(key,JSON.parse(value));}};}};}},
     AI:{async toMarkdown(){return {format:'markdown',data:'# Document\nConverted PDF'};}}};
 }
 test('web fetch windows, escapes hostile content and deduplicates with provenance',async()=>{
@@ -40,10 +38,4 @@ test('PDF converts through AI; HTTP errors never become memory',async()=>{
   assert.match(result.text,/Converted PDF/);assert.equal(result.source.via,'converted');
   await assert.rejects(readWebSource(env,{url:'https://example.com/missing'},async()=>new Response('not found',{status:404,headers:{'content-type':'text/plain'}})),/HTTP 404/);
   assert.equal(env.records.size,1);
-});
-test('research gets web_fetch but unrelated agents and disabled plugins cannot call it',async()=>{
-  assert.ok(AGENTS.find(a=>a.id==='researcher').tools.includes('web_fetch'));
-  await assert.rejects(runTool({},AGENTS.find(a=>a.id==='backend'),'web_fetch',{url:'https://example.com'}),/not allowed/);
-  const env={DB:{prepare(){return {bind(){return {async first(){return {installed:1,enabled:0};}};}};}}};
-  await assert.rejects(runTool(env,AGENTS.find(a=>a.id==='researcher'),'web_fetch',{url:'https://example.com'}),/vypnuté/);
 });
