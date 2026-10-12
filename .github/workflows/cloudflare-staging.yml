@@ -44,25 +44,21 @@ jobs:
       - name: Validate Worker bundle (no deployment)
         run: npx --yes wrangler@4 deploy --dry-run --config wrangler.staging.toml --outdir .wrangler/staging-ci
 
-      - name: Check authorization before private deployment
+      - name: Check Cloudflare credentials
         if: ${{ inputs.operation == 'deploy-private' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TRINITY_STAGING_D1_DATABASE_ID: ${{ vars.TRINITY_STAGING_D1_DATABASE_ID }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN GitHub secret"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID GitHub secret"; exit 1; }
-          test -n "$TRINITY_STAGING_D1_DATABASE_ID" || { echo "::error::Missing TRINITY_STAGING_D1_DATABASE_ID GitHub variable"; exit 1; }
-          python3 - <<'PY'
-          import os, pathlib, re
-          dbid = os.environ['TRINITY_STAGING_D1_DATABASE_ID']
-          if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', dbid):
-              raise SystemExit('Invalid staging D1 database UUID')
-          target = pathlib.Path('wrangler.staging.generated.toml')
-          base = pathlib.Path('wrangler.staging.toml').read_text()
-          target.write_text(base + '\n[[d1_databases]]\nbinding = "TRINITY_DB"\ndatabase_name = "trinity-dialogue-staging-db"\ndatabase_id = "' + dbid + '"\n')
-          PY
+
+      - name: Ensure dedicated staging D1 database and binding
+        if: ${{ inputs.operation == 'deploy-private' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 scripts/prepare_cloudflare_staging.py
 
       - name: Migrate dedicated staging database
         if: ${{ inputs.operation == 'deploy-private' }}
