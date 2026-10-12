@@ -1,0 +1,87 @@
+name: Cloudflare Trinity Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Validate only, or deploy to private staging without a public route'
+        type: choice
+        required: true
+        default: validate
+        options:
+          - validate
+          - deploy-private
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-trinity-staging
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    name: Test and prepare isolated Cloudflare Worker
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    environment: trinity-staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Validate Worker bundle (no deployment)
+        run: npx --yes wrangler@4 deploy --dry-run --config wrangler.staging.toml --outdir .wrangler/staging-ci
+
+      - name: Check authorization before private deployment
+        if: ${{ inputs.operation == 'deploy-private' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TRINITY_STAGING_D1_DATABASE_ID: ${{ vars.TRINITY_STAGING_D1_DATABASE_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN GitHub secret"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID GitHub secret"; exit 1; }
+          test -n "$TRINITY_STAGING_D1_DATABASE_ID" || { echo "::error::Missing TRINITY_STAGING_D1_DATABASE_ID GitHub variable"; exit 1; }
+          python3 - <<'PY'
+          import os, pathlib, re
+          dbid = os.environ['TRINITY_STAGING_D1_DATABASE_ID']
+          if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', dbid):
+              raise SystemExit('Invalid staging D1 database UUID')
+          target = pathlib.Path('wrangler.staging.generated.toml')
+          base = pathlib.Path('wrangler.staging.toml').read_text()
+          target.write_text(base + '\\n[[d1_databases]]\\nbinding = "TRINITY_DB"\\ndatabase_name = "trinity-dialogue-staging-db"\\ndatabase_id = "' + dbid + '"\\n')
+          PY
+
+      - name: Migrate dedicated staging database
+        if: ${{ inputs.operation == 'deploy-private' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 d1 execute trinity-dialogue-staging-db --remote --file migrations/0001_trinity_dialogue.sql --config wrangler.staging.generated.toml --yes
+
+      - name: Deploy isolated non-public staging service
+        if: ${{ inputs.operation == 'deploy-private' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy --config wrangler.staging.generated.toml
+
+      - name: Explain result
+        if: always()
+        run: |
+          echo '### Trinity Cloudflare staging' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Target: trinity-dialogue-staging (not tenebris-core / aura-trinity)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No workers.dev endpoint, no preview URL, no public routes' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Production deploy: NOT enabled in this workflow' >> "$GITHUB_STEP_SUMMARY"
