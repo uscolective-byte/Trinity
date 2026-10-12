@@ -61,7 +61,7 @@ jobs:
               raise SystemExit('Invalid staging D1 database UUID')
           target = pathlib.Path('wrangler.staging.generated.toml')
           base = pathlib.Path('wrangler.staging.toml').read_text()
-          target.write_text(base + '\\n[[d1_databases]]\\nbinding = "TRINITY_DB"\\ndatabase_name = "trinity-dialogue-staging-db"\\ndatabase_id = "' + dbid + '"\\n')
+          target.write_text(base + '\n[[d1_databases]]\nbinding = "TRINITY_DB"\ndatabase_name = "trinity-dialogue-staging-db"\ndatabase_id = "' + dbid + '"\n')
           PY
 
       - name: Migrate dedicated staging database
