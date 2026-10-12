@@ -1,0 +1,105 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "trinity-staging",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "keep_vars": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  },
+  "limits": {
+    "cpu_ms": 30000
+  },
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.html",
+        "**/*.css",
+        "**/*.js.txt"
+      ],
+      "fallthrough": true
+    }
+  ],
+  "vars": {
+    "AI_MODEL": "@cf/openai/gpt-oss-120b",
+    "IMAGE_MODEL": "@cf/black-forest-labs/flux-1-schnell"
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "YOUR_DATABASE_NAME",
+      "database_id": "YOUR_DATABASE_ID",
+      "migrations_dir": "migrations"
+    },
+    {
+      "binding": "rea",
+      "database_name": "YOUR_DATABASE_NAME",
+      "database_id": "YOUR_DATABASE_ID"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "Mastermind",
+      "id": "YOUR_KV_NAMESPACE_ID"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARTIFACTS",
+      "bucket_name": "your-artifact-bucket"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "Brain",
+        "class_name": "TrinityAgent"
+      },
+      {
+        "name": "CHAT_AGENT",
+        "class_name": "ChatAgent"
+      },
+      {
+        "name": "GUARDIAN_AGENT",
+        "class_name": "GuardianAgent"
+      }
+    ]
+  },
+  "exports": {
+    "TrinityAgent": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "ChatAgent": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "GuardianAgent": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "workflows": [
+    {
+      "binding": "OPS_WORKFLOW",
+      "name": "trinity-operations",
+      "class_name": "TrinityOperations"
+    }
+  ],
+  "preview_urls": false
+}
