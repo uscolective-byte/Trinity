@@ -4,3 +4,9 @@ compatibility_date = "2026-08-31"
 
 [observability]
 enabled = true
+
+# Internal Worker-to-Worker connection. The target service must exist in the
+# same Cloudflare account before this caller can be deployed.
+[[services]]
+binding = "TRINITY_DISPATCHER"
+service = "trinity-dispatcher"
