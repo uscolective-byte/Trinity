@@ -1,0 +1,32 @@
+name: Trinity worker delegation tests
+
+on:
+  pull_request:
+    paths:
+      - 'workers/**'
+      - 'src/routes/workers.js'
+      - 'src/index.js'
+      - 'tests/delegation.test.mjs'
+      - '.github/workflows/delegation-tests.yml'
+  push:
+    branches:
+      - feature/trinity-worker-delegation
+
+permissions:
+  contents: read
+
+jobs:
+  delegation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax
+        run: |
+          node --check workers/shared/delegation.mjs
+          node --check workers/shared/delegated-handler.mjs
+          node --check workers/dispatcher/src/index.mjs
+      - name: Run delegation tests
+        run: node --test tests/delegation.test.mjs
