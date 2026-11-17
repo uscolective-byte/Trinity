@@ -360,157 +360,66 @@ window.toggleInt = async (id) => {
 
 // --- AI Core View ---
 async function renderAI(c) {
-  const [{ data: perms }, { data: behavior }, { data: auto }] = await Promise.all([
-    api('/api/ai/permissions'), api('/api/ai/behavior'), api('/api/ai/autonomous/status')
-  ]);
-  const m = auto?.metrics || { cycles: 0, decisions: 0, tasks: 0, patterns: 0, evolutions: 0 };
-  const caps = auto?.capabilities || [];
-  const cycles = auto?.recentCycles || [];
-
   c.innerHTML = \`
-  <div class="flex items-center justify-between mb-6">
-    <div><h1 class="text-3xl font-black neon uppercase">✦ TRINITY AI Core</h1><div class="text-xs text-gray-600 tracking-widest mt-1">CENTRÁLNA AUTONÓMNA INTELIGENCIA</div></div>
-    <div class="flex items-center gap-3">
-      <span class="badge \${auto?.active?'badge-online':'badge-disconnected'}">\${auto?.active?'ENGINE ACTIVE':'ENGINE IDLE'}</span>
-      <button id="ai-toggle-engine" class="\${auto?.active?'btn-ghost':'btn-neon'} text-xs uppercase">\${auto?.active?'Stop':'Štart'}</button>
-    </div>
-  </div>
-
-  <!-- Metrics bar -->
-  <div class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Cykly</div><div class="text-xl font-black neon">\${m.cycles}</div></div>
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Rozhodnutia</div><div class="text-xl font-black neon">\${m.decisions}</div></div>
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Úlohy</div><div class="text-xl font-black neon">\${m.tasks}</div></div>
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Vzorce</div><div class="text-xl font-black neon">\${m.patterns}</div></div>
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Evolúcie</div><div class="text-xl font-black neon">\${m.evolutions}</div></div>
-    <div class="panel p-3 text-center"><div class="text-[10px] text-gray-600 uppercase">Evo Score</div><div class="text-xl font-black neon">\${auto?.evolutionScore || 0}</div></div>
-  </div>
-
-  <!-- Autonomous cycle controls -->
+  <h1 class="text-3xl font-black neon uppercase mb-6">TRINITY AI Core</h1>
   <div class="panel p-5 mb-6">
-    <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">⚙ Autonómny engine</h3>
-    <div class="flex flex-wrap gap-3 mb-4">
-      <button id="ai-cycle" class="btn-neon text-xs uppercase">Spusti autonómny cyklus</button>
-      <button id="ai-learn" class="btn-ghost text-xs uppercase">Samoučenie</button>
-      <button id="ai-evolve" class="btn-ghost text-xs uppercase">Samoevolúcia</button>
-      <button id="ai-decision" class="btn-ghost text-xs uppercase">Autonómne rozhodnutie</button>
+    <h2 class="text-sm font-bold neon uppercase mb-4">Overenie dostupnosti</h2>
+    <div class="flex flex-wrap gap-3">
+      <button id="ai-check-api" class="btn-neon">Overiť AI API</button>
+      <button id="ai-check-production" class="btn-ghost">Overiť auru.space</button>
     </div>
-    <div id="ai-cycle-result" class="terminal" style="min-height:60px"><div class="text-gray-600">Stav engine: \${auto?.active?'AKTÍVNY':'NEAKTÍVNY'} · Knowledge base: \${auto?.knowledgeBaseSize || 0} záznamov</div></div>
+    <div id="ai-response" class="terminal mt-4" role="status"></div>
   </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Command panel -->
-    <div class="panel p-5">
-      <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Príkazový panel</h3>
-      <textarea id="ai-cmd" class="input mb-3" rows="3" placeholder="Zadaj príkaz pre AI Core..."></textarea>
-      <button id="ai-send" class="btn-neon w-full uppercase">Vykonaj príkaz</button>
-      <div id="ai-response" class="terminal mt-4" style="min-height:100px"><div class="text-gray-600">Čakám na príkaz od super-admina...</div></div>
-    </div>
-
-    <!-- Capabilities -->
-    <div class="panel p-5">
-      <h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">🧬 Schopnosti (samoevolúcia)</h3>
-      <div class="space-y-2">
-        \${caps.map(cap => \`
-        <div class="flex items-center justify-between p-2 \${cap.unlocked?'':'opacity-40'}">
-          <div class="flex items-center gap-2">
-            <span class="\${cap.unlocked?'neon':'text-gray-700'}">\${cap.unlocked?'◆':'◇'}</span>
-            <span class="text-xs \${cap.unlocked?'text-gray-300':'text-gray-600'}">\${cap.name}</span>
-          </div>
-          <span class="text-[10px] \${cap.unlocked?'text-green-500':'text-gray-700'}">\${cap.unlocked?'UNLOCKED':'LOCKED'}</span>
-        </div>\`).join('')}
-      </div>
-    </div>
-
-    <!-- Permissions -->
-    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">Povolenia a obmedzenia</h3>
-      <div class="space-y-3" id="ai-perms">\${(perms?.permissions||[]).map(p => \`
-      <div class="flex items-center justify-between p-2 hover:bg-gray-900">
-        <div><div class="text-xs font-bold text-gray-300">\${p.name}</div><div class="text-[10px] text-gray-600">\${p.scope}</div></div>
-        <div class="toggle \${p.enabled?'on':''}" onclick="togglePerm('\${p.id}')"></div>
-      </div>\`).join('')}</div>
-    </div>
-
-    <!-- Autonomous cycle log -->
-    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">🔄 Cyklus logy</h3>
-      <div class="terminal" style="max-height:200px">\${cycles.map(cy => \`<div><span class="text-gray-600">[#\${cy.cycle}]</span> <span class="text-gray-400">\${cy.decision}</span> → <span class="neon">\${cy.action?.slice(0,50)}</span> <span class="text-gray-700">(score: \${cy.evolutionScore})</span>\${cy.newCapabilities?.length?\` <span class="text-green-500">NEW: \${cy.newCapabilities.join(', ')}</span>\`:''}</div>\`).join('') || '<div class="text-gray-600">Žiadne cykly. Spusti autonómny cyklus.</div>'}</div>
-    </div>
-
-    <!-- Behavior monitoring -->
-    <div class="panel p-5"><h3 class="text-sm font-bold neon uppercase mb-4 border-b border-gray-800 pb-2">📡 Monitoring správania</h3>
-      <div class="terminal" style="max-height:200px">\${(behavior?.logs||[]).map(l => \`<div><span class="text-gray-600">[\${l.time.slice(11,19)}]</span> <span class="text-gray-400">\${l.command}</span> → <span class="neon">\${(l.response||'').slice(0,60)}</span></div>\`).join('') || '<div class="text-gray-600">Žiadna aktivita</div>'}</div>
-    </div>
+  <div class="panel p-5">
+    <h2 class="text-sm font-bold neon uppercase mb-4">Overenia v pamäti procesu</h2>
+    <div id="ai-observations" class="terminal"></div>
   </div>\`;
 
-  // Command panel
-  document.getElementById('ai-send').onclick = async () => {
-    const cmd = document.getElementById('ai-cmd').value.trim();
-    if (!cmd) return;
-    const box = document.getElementById('ai-response');
-    box.innerHTML = '<div class="text-yellow-500">Spracúvam príkaz...<span class="blink">_</span></div>';
-    const { ok, data } = await api('/api/ai/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
-    if (ok) box.innerHTML = \`<div class="text-gray-600">> \${cmd}</div><div class="neon mt-2">\${data.response}</div><div class="text-[10px] text-gray-700 mt-2">Engine: \${data.engine}</div>\`;
-    else box.innerHTML = \`<div class="text-red-500">Chyba: \${data.error}</div>\`;
-  };
+  const response = c.querySelector('#ai-response');
+  const observations = c.querySelector('#ai-observations');
+  const apiButton = c.querySelector('#ai-check-api');
+  const productionButton = c.querySelector('#ai-check-production');
 
-  // Toggle engine
-  document.getElementById('ai-toggle-engine').onclick = async () => {
-    await api('/api/ai/autonomous/toggle', { method: 'POST' });
-    renderAI(c);
-  };
-
-  // Run autonomous cycle
-  document.getElementById('ai-cycle').onclick = async () => {
-    const box = document.getElementById('ai-cycle-result');
-    box.innerHTML = '<div class="text-yellow-500">Spúšťam autonómny cyklus...<span class="blink">_</span></div>';
-    const { ok, data } = await api('/api/ai/autonomous/cycle', { method: 'POST' });
-    if (ok) {
-      box.innerHTML = \`<div class="text-green-500">✓ Cyklus #\${data.cycle} dokončený</div>
-        <div class="text-gray-400 mt-1">Rozhodnutie: <span class="neon">\${data.decision}</span></div>
-        <div class="text-gray-400">Akcia: \${data.action}</div>
-        <div class="text-gray-400">Vzorce: \${data.patterns} · Evo score: \${data.evolutionScore} · Schopnosti: \${data.totalCapabilities}/\${(auto?.capabilities||[]).length}</div>
-        \${data.newCapabilities?.length?\`<div class="text-green-500 mt-1">🧬 Nové schopnosti: \${data.newCapabilities.join(', ')}</div>\`:''}
-        <div class="text-gray-600 mt-1">Úlohy: \${data.tasks.map(t=>t.task+' ('+t.status+')').join(', ')}</div>\`;
-      setTimeout(() => renderAI(c), 2000);
-    } else {
-      box.innerHTML = '<div class="text-red-500">Chyba: ' + (data?.error || 'unknown') + '</div>';
+  async function refreshObservations() {
+    try {
+      const { ok, data } = await api('/api/ai/behavior');
+      observations.replaceChildren();
+      if (!ok || !Array.isArray(data.logs)) {
+        observations.textContent = 'Záznamy sú nedostupné.';
+        return;
+      }
+      for (const observation of data.logs) {
+        const line = document.createElement('div');
+        line.textContent = observation.time + ' · ' + observation.response;
+        observations.append(line);
+      }
+      if (!data.logs.length) observations.textContent = 'Zatiaľ bez overení.';
+    } catch {
+      observations.textContent = 'Záznamy sú nedostupné.';
     }
-  };
+  }
 
-  // Self-learning
-  document.getElementById('ai-learn').onclick = async () => {
-    const { ok, data } = await api('/api/ai/learn', { method: 'POST', body: JSON.stringify({ source: 'manual', payload: { trigger: 'super-admin' } }) });
-    if (ok) {
-      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">✓ Samoučenie: \${data.patterns ? Object.entries(data.patterns).map(([k,v])=>k+':'+v).join(', ') : 'žiadne vzorce'}</div><div class="text-gray-500">Knowledge base: \${data.knowledgeBaseSize} záznamov</div>\`;
-      setTimeout(() => renderAI(c), 1500);
+  async function runCheck(command) {
+    apiButton.disabled = productionButton.disabled = true;
+    response.textContent = 'Overujem dostupnosť…';
+    try {
+      const { ok, data } = await api('/api/ai/command', {
+        method: 'POST',
+        body: JSON.stringify({ command }),
+      });
+      response.textContent = (ok ? data.response : data.error) || 'Výsledok je nedostupný.';
+      await refreshObservations();
+    } catch {
+      response.textContent = 'Rozhranie AI je nedostupné.';
+    } finally {
+      apiButton.disabled = productionButton.disabled = false;
     }
-  };
+  }
 
-  // Self-evolution
-  document.getElementById('ai-evolve').onclick = async () => {
-    const { ok, data } = await api('/api/ai/evolve', { method: 'POST' });
-    if (ok) {
-      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">✓ Samoevolúcia: score \${data.evolutionScore}</div>\${data.newCapabilities?.length?\`<div class="text-green-500">🧬 Nové schopnosti: \${data.newCapabilities.join(', ')}</div>\`:'<div class="text-gray-500">Žiadne nové schopnosti (potrebuj vyšší score)</div>'}<div class="text-gray-500">Odomknuté: \${data.totalCapabilities}/\${caps.length}</div>\`;
-      setTimeout(() => renderAI(c), 1500);
-    }
-  };
-
-  // Autonomous decision
-  document.getElementById('ai-decision').onclick = async () => {
-    const { ok, data } = await api('/api/ai/decision');
-    if (ok) {
-      const ecoStr = Object.entries(data.ecosystem||{}).map(([k,v])=>k+':'+v).join(', ');
-      document.getElementById('ai-cycle-result').innerHTML = \`<div class="text-green-500">✓ Rozhodnutie: \${data.decision}</div><div class="text-gray-400">\${data.action}</div><div class="text-gray-600 mt-1">Ecosystem: \${ecoStr}</div>\`;
-    }
-  };
+  apiButton.onclick = () => runCheck('stav api');
+  productionButton.onclick = () => runCheck('stav produkcie');
+  await refreshObservations();
 }
-
-window.togglePerm = async (id) => {
-  const { data } = await api('/api/ai/permissions');
-  const perm = (data?.permissions||[]).find(p => p.id === id);
-  await api('/api/ai/permissions/' + id, { method: 'PATCH', body: JSON.stringify({ enabled: !perm.enabled }) });
-  renderAI(document.getElementById('content'));
-};
 
 // --- Shop View ---
 async function renderShop(c) {

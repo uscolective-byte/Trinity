@@ -4,10 +4,10 @@ import { processTrinityStep } from '@/core/orchestrator';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { input } = body;
+    const input = body?.input;
 
-    if (!input) {
-      return NextResponse.json({ error: "Chýba parameter 'input'." }, { status: 400 });
+    if (typeof input !== "string" || !input.trim()) {
+      return NextResponse.json({ error: "Parameter 'input' musí byť neprázdny text." }, { status: 400 });
     }
 
     const result = processTrinityStep(input);

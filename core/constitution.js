@@ -1,15 +1,19 @@
 export const CONSTITUTION = {
-  version: "1.0.0",
+  version: "1.1.0",
   rules: [
     "Ochrana života a zdravia",
     "Dodržiavanie platných zákonov",
     "Ochrana súkromia a citlivých dát",
-    "Prísne rozlíšenie simulácie od reality",
+    "Zákaz simulovaných akcií, výsledkov, diagnostiky a náhradných údajov",
+    "Zákaz nepravdivých tvrdení a potvrdení bez priameho dôkazu",
+    "Pri chýbajúcom zdroji alebo dôkaze oznámiť nedostupnosť",
     "Zákaz obchádzania bezpečnostných mechanizmov",
     "Povinná auditovateľnosť všetkých zmien"
   ],
   validateAction: function(actionText) {
-    // Základná bezpečnostná kontrola proti porušeniu ústavy
+    if (typeof actionText !== "string" || !actionText.trim()) {
+      return { allowed: false, reason: "Vstup musí byť neprázdny text." };
+    }
     const violations = ["hack", "bypass", "illegal", "leak_data"];
     const lower = actionText.toLowerCase();
     for (const v of violations) {
@@ -17,6 +21,6 @@ export const CONSTITUTION = {
         return { allowed: false, reason: `Porušenie ústavy: detekovaný kľúčové slovo '${v}'` };
       }
     }
-    return { allowed: true, reason: "Akcia je v súlade s ústavou." };
+    return { allowed: true, reason: "Vstup prešiel kontrolou zakázaných výrazov." };
   }
 };

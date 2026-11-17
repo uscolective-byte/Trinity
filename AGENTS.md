@@ -11,7 +11,7 @@ A Cloudflare Workers app ("TENEBRIS CORE" / Underground Street Collective). Now 
 - `src/routes/pillars.js` — list/detail/toggle 6 pillars (with vehicles, workers, shipments, projects)
 - `src/routes/security.js` — firewall rules, access levels, audit log, login history
 - `src/routes/integrations.js` — connect/disconnect integrations
-- `src/routes/ai.js` — AI Core: Gemini-powered command panel + permissions + behavior log
+- `src/routes/ai.js` — AI Core: verified command panel and behavior log
 - `src/routes/api-shop.js` — existing USW streetwear shop (unchanged)
 
 ## How it runs here
@@ -19,8 +19,9 @@ A Cloudflare Workers app ("TENEBRIS CORE" / Underground Street Collective). Now 
 - Wrangler dev listens on `0.0.0.0:8787`, mapped to host port **3000**.
 - The `gemini` secret (from `/run/base44/app.env`) is written to `.dev.vars` at container startup so wrangler passes it to the worker as `env.gemini`.
 
-## Secrets
-- `gemini` — Google AI Studio API key for the AI Core command panel. The AI handler uses model `gemini-flash-latest` and gracefully falls back to simulated responses when Gemini is unavailable/overloaded.
+## AI integrity
+- Reports of execution or system state require direct evidence. Unsupported commands fail explicitly.
+- The command panel supports `stav api` and `stav produkcie`. The production check records actual HTTP results and tries GET when HEAD fails. Observations are kept in process memory.
 
 ## Demo login
 - Password: `tenebris369` · 2FA: `369369`

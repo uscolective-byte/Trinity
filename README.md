@@ -10,7 +10,7 @@ Celý systém beží pod kódovým označením **TENEBRIS** na doméne `auru.spa
 
 ## ⚡ AKTÍVNE DIVÍZIE (PROJECT STATUS)
 
-*   🤖 **Aura Trinity AI** – Autonómny dispečer a riadenie procesov. Naša umelá inteligencia.
+*   🤖 **Aura Trinity AI** – Overenie dostupnosti AI API a produkčnej adresy zo skutočných HTTP výsledkov.
 *   👕 **USW Streetwear** – Dropovanie pouličného oblečenia priamo pre komunitu.
 *   🚚 **Rent a Wheel** – Dispečing a správa dodávok (L3H2) pre reálnu logistiku.
 *   📊 **USC Work** – Turnusová kalkulačka montáží v Nemecku (§ 13b UStG) – žiadne zložité tabuľky, čistý výpočet zárobku.
@@ -22,7 +22,7 @@ Celý systém beží pod kódovým označením **TENEBRIS** na doméne `auru.spa
 
 *   **Runtime:** Cloudflare Workers (Ultra-rýchle API priamo na edge)
 *   **Database / Auth:** Firebase (Zabezpečená databáza pre adminov)
-*   **AI Engine:** Google AI Studio (Gemini Integration)
+*   **AI Engine:** Overiteľné príkazy v Cloudflare Worker
 *   **Domain & Security:** `auru.space` (Zabezpečené cez Cloudflare)
 
 ---
@@ -34,4 +34,4 @@ Celý systém beží pod kódovým označením **TENEBRIS** na doméne `auru.spa
 3. **Tesla Code [369]:** Synchronizácia, štruktúra, čistá myseľ.
 
 ---
-*Vytvorené v podzemí pre reálny svet. Riadené externým mozgom Gemini Enterprise.*
+*Vytvorené v podzemí pre reálny svet.*

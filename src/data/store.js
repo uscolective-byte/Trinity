@@ -191,36 +191,12 @@ const integrations = [
   { id: 'cloudflare', name: 'Cloudflare', icon: '☁️', status: 'connected', detail: 'DNS + Workers + WAF', domain: 'auru.space' },
   { id: 'github', name: 'GitHub', icon: '🐙', status: 'connected', detail: 'Repo management + CI/CD', repos: ['Trinity', 'USC', 'Tenebris', 'Auru_trinity_butcher'] },
   { id: 'firebase', name: 'Firebase', icon: '🔥', status: 'disconnected', detail: 'Databáza + Auth', project: '—' },
-  { id: 'gemini', name: 'Google AI Studio', icon: '✨', status: 'connected', detail: 'Gemini — AI Core engine', model: 'gemini-flash-latest' },
+  { id: 'gemini', name: 'Google AI Studio', icon: '✨', status: 'disconnected', detail: 'Google AI Studio', model: 'gemini-flash-latest' },
   { id: 'dominatron', name: 'Dominatron', icon: '🌐', status: 'disconnected', detail: 'Správa domén', domains: '—' },
 ];
 
 // --- AI Core ---
-const aiPermissions = [
-  { id: 'ai-read', name: 'Čítať dáta', enabled: true, scope: 'all pillars' },
-  { id: 'ai-write', name: 'Zapisovať dáta', enabled: false, scope: 'sandbox only' },
-  { id: 'ai-codegen', name: 'Generovať kód', enabled: true, scope: 'TRINITY modules' },
-  { id: 'ai-web', name: 'Tvorba webu', enabled: true, scope: 'static sites' },
-  { id: 'ai-social', name: 'Sociálne siete', enabled: false, scope: 'requires approval' },
-  { id: 'ai-delete', name: 'Mazať súbory', enabled: false, scope: 'requires approval' },
-];
-
 const aiBehaviorLog = [];
-
-// --- AI Core: Autonomous Engine state ---
-const aiKnowledgeBase = [];     // ingested data records
-const aiEvolutionScore = { value: 0 }; // grows with each learning cycle
-const aiCapabilities = [       // unlocked capabilities
-  { id: 'base-ops', name: 'Základná operácia', unlocked: true, unlockedAt: 'init' },
-  { id: 'pattern-detect', name: 'Detekcia vzorcov', unlocked: true, unlockedAt: 'init' },
-  { id: 'adaptive-routing', name: 'Adaptívne routovanie', unlocked: false, unlockedAt: null },
-  { id: 'predictive-analysis', name: 'Prediktívna analýza', unlocked: false, unlockedAt: null },
-  { id: 'auto-codegen', name: 'Autonómne generovanie kódu', unlocked: false, unlockedAt: null },
-  { id: 'self-healing', name: 'Samoliečenie systému', unlocked: false, unlockedAt: null },
-];
-const aiAutonomousLog = [];    // autonomous cycle logs
-const aiMetrics = { cycles: 0, decisions: 0, tasks: 0, patterns: 0, evolutions: 0 };
-const aiActive = { value: false }; // engine running flag
 
 // --- System alerts ---
 const alerts = [
@@ -252,14 +228,7 @@ export {
   firewallRules,
   accessLevels,
   integrations,
-  aiPermissions,
   aiBehaviorLog,
-  aiKnowledgeBase,
-  aiEvolutionScore,
-  aiCapabilities,
-  aiAutonomousLog,
-  aiMetrics,
-  aiActive,
   alerts,
   systemLogs,
 };

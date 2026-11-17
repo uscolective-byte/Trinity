@@ -20,7 +20,8 @@ export function processTrinityStep(userInput) {
 
   return {
     success: true,
-    message: "Butcher Trinity úspešne spracoval požiadavku.",
+    message: "Vstup bol uložený do pamäte procesu.",
+    executionStatus: "not_executed",
     memory: memoryRecord
   };
 }

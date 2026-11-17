@@ -5,5 +5,5 @@ export function evaluatePolicy(actionContext) {
   if (!check.allowed) {
     return { status: "BLOCKED", reason: check.reason };
   }
-  return { status: "PASSED", reason: "Policy engine schválil akciu." };
+  return { status: "PASSED", reason: "Vstup prešiel kontrolou politiky." };
 }

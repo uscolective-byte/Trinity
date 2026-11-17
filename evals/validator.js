@@ -1,10 +1,7 @@
 export function runEvals(systemState) {
-  // Simulácia testov stability a bezpečnosti
-  const isStable = true; 
-  const isSecure = true;
-
-  if (isStable && isSecure) {
-    return { passed: true, message: "Evaly prešli úspešne. Systém je stabilný." };
+  const input = systemState?.input;
+  if (typeof input !== 'string' || !input.trim()) {
+    return { passed: false, message: 'Vstup musí byť neprázdny text.' };
   }
-  return { passed: false, message: "Evaly zlyhali. Detekovaná nestabilita." };
+  return { passed: true, message: 'Vstup je neprázdny text.' };
 }
